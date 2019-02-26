@@ -83,7 +83,7 @@ for t = [1:Nstep]
         for j = y
             for k = z
                 % 'e' stands for each genotype existing in a given voxel
-                for e = [1:size(G{i,j,k},2)] 
+                for e = 1:size(G{i,j,k},2) 
                     if G{i,j,k}(e) > 0 % Only if there is population for the given genotype
                         new = 0;
 
@@ -93,10 +93,10 @@ for t = [1:Nstep]
 
 
                         % Migration event
-                        [xmov,ymov] = mig(G,Vs,[i,j,k],e);
-                        new = new - 1;
-                        Gnext{xmov,ymov,k}(e) = Gnext{xmov,ymov,k}(e)+1;
-                        Vsnext{xmov,ymov,k}(e) = Vsnext{xmov,ymov,k}(3)+1;
+%                         [xmov,ymov] = mig(G,Vs,[i,j,k],e);
+%                         new = new - 1;
+%                         Gnext{xmov,ymov,k}(e) = Gnext{xmov,ymov,k}(e)+1;
+%                         Vsnext{xmov,ymov,k}(e) = Vsnext{xmov,ymov,k}(3)+1;
 
                         % Death event
                         dead = death(G{i,j,k}(e),Vs{i,j,k}(3),Vs{i,j,k}(4),Vs{i,j,k}(2));
@@ -139,7 +139,7 @@ for t = [1:Nstep]
             end
         end
         evalstep = evalstep+1;
-        disp(['Iteration nº ' num2str(t)])
+        disp(['Iteration nâˆ« ' num2str(t)])
         disp(['Popgen: ' num2str(Vs{11,11,1}(3)) ', Totpop: ' num2str(totpop(evalstep)) ', Nec: ' num2str(Vs{11,11,1}(2))])
     end
 end
@@ -286,4 +286,3 @@ function dead = death(Popgen,Poptot,K,Nec)
     Pkill = 1e-4;%*((Poptot+Nec)/K);
     dead = binornd(Popgen,Pkill);
 end
-
