@@ -31,7 +31,8 @@ Alt = 6;
 % We consider a year of time, evaluated each 10 hours
 deltat = 10; % hours
 T = 2*365*24;  % hours
-Nstep = T/deltat;
+%Nstep = T/deltat;
+Nstep=500;
 
 
 % SET REQUIRED CELL LISTS
@@ -85,18 +86,25 @@ for t = [1:Nstep]
                 % 'e' stands for each genotype existing in a given voxel
                 for e = 1:size(G{i,j,k},2) 
                     if G{i,j,k}(e) > 0 % Only if there is population for the given genotype
+                            
                         new = 0;
+                        dead=0;
 
-                        % Reproduction event
+%                        Reproduction event
                         born = rep(G{i,j,k}(e),Vs{i,j,k}(3),Vs{i,j,k}(4),Vs{i,j,k}(2));
                         new = new + born;
 
-
-                        % Migration event
+%                         for l=1:Gnext{i,j,k}(e) % Iterate through each individual
+%                        % Migration event
 %                         [xmov,ymov] = mig(G,Vs,[i,j,k],e);
 %                         new = new - 1;
 %                         Gnext{xmov,ymov,k}(e) = Gnext{xmov,ymov,k}(e)+1;
-%                         Vsnext{xmov,ymov,k}(e) = Vsnext{xmov,ymov,k}(3)+1;
+%                         Vsnext{xmov,ymov,k}(3) = Vsnext{xmov,ymov,k}(3)+1;
+%                         end
+
+                        % Migration event 2/3
+                        [Gnext,Vsnext,out]=mig2(G,Vs,[i,j,k],e,Gnext,Vsnext);
+                        new=new-out;
 
                         % Death event
                         dead = death(G{i,j,k}(e),Vs{i,j,k}(3),Vs{i,j,k}(4),Vs{i,j,k}(2));
@@ -114,8 +122,7 @@ for t = [1:Nstep]
                         Vsnext{i,j,k}(3) = Vsnext{i,j,k}(3)+new;
                         Vsnext{i,j,k}(2) = Vsnext{i,j,k}(2)+dead;
                         Gnext{i,j,k}(e) = Gnext{i,j,k}(e)+new;
-                        
-
+                      
                     end
                 end
             end
@@ -139,8 +146,8 @@ for t = [1:Nstep]
             end
         end
         evalstep = evalstep+1;
-        disp(['Iteration n∫ ' num2str(t)])
-        disp(['Popgen: ' num2str(Vs{11,11,1}(3)) ', Totpop: ' num2str(totpop(evalstep)) ', Nec: ' num2str(Vs{11,11,1}(2))])
+         disp(['Iteration n∫ ' num2str(t)])
+         disp(['Popgen: ' num2str(Vs{11,11,1}(3)) ', Totpop: ' num2str(totpop(evalstep)) ', Nec: ' num2str(Vs{11,11,1}(2))])
     end
 end
 
@@ -285,4 +292,137 @@ end
 function dead = death(Popgen,Poptot,K,Nec)
     Pkill = 1e-4;%*((Poptot+Nec)/K);
     dead = binornd(Popgen,Pkill);
+end
+
+
+%% MIGRATION 2
+%
+% Select number of individuals according to pmig and then assign
+% destination according to local laplacian
+%
+%--------------------------------------------------------------------------
+function [gennext,statenext,migrants] = mig2(gen,state,voxel,choice,gennext,statenext)
+
+    x = voxel(1);
+    y = voxel(2);
+    z = voxel(3);
+    
+    Popgen = gen{x,y,z}(choice);
+    Poptot = state{x,y,z}(3);
+    K = state{x,y,z}(4);
+    Nec = state{x,y,z}(2);
+    
+    Pmig = 1e-2;
+    Lap = zeros(4,3);
+    i = 0;
+    for movi = -1:1
+        for movj = -1:1
+            xmov = x+movi;
+            ymov = y+movj;
+            
+            if xmov < 22 && xmov > 0 && ymov < 22 && ymov > 0 && abs(movi)+abs(movj) ~= 0 && abs(movi)+abs(movj) ~= 2
+                i = i + 1;
+                lap = (Poptot - state{xmov,ymov,z}(3));
+                if lap < 0
+                    lap = 0;
+                end
+                Lap(i,:) = [xmov,ymov,lap];
+            end
+        end
+    end
+    
+    Lap(:,3) = Lap(:,3)/sum(Lap(:,3));
+    
+    a = 1:length(Lap(:,1));
+    
+    % Sample number of migrants and assign destination according to
+    % probabilities
+    
+    migrants = binornd(Popgen,Pmig);
+    
+    if migrants > 0
+    
+    for i=1:migrants 
+    
+    select = a( sum( (rand(1) >= cumsum(Lap(:,3)./sum(Lap(:,3))))) + 1);
+    
+    xmov = Lap(select,1);
+    ymov = Lap(select,2);
+    
+    gennext{xmov,ymov,z}(choice) = gennext{xmov,ymov,z}(choice)+1;
+    statenext{xmov,ymov,z}(3) = statenext{xmov,ymov,z}(3)+1;
+    
+    
+    end
+    
+    end
+
+end
+
+
+%% MIGRATION 3
+%
+% Compute local laplacian and sample individual according to multinomial
+% distribution (with 4 possible outcomes - 4 neighbours)
+% 
+%--------------------------------------------------------------------------
+
+
+
+function [gennext,statenext,out] = mig3(gen,state,voxel,choice,gennext,statenext)
+
+    x = voxel(1);
+    y = voxel(2);
+    z = voxel(3);
+    
+    Popgen = gen{x,y,z}(choice);
+    Poptot = state{x,y,z}(3);
+    K = state{x,y,z}(4);
+    Nec = state{x,y,z}(2);
+    
+    Pmig = 1e-2;
+    Lap = zeros(4,3);
+    i = 0;
+    for movi = -1:1
+        for movj = -1:1
+            xmov = x+movi;
+            ymov = y+movj;
+            
+            if xmov < 22 && xmov > 0 && ymov < 22 && ymov > 0 && abs(movi)+abs(movj) ~= 0 && abs(movi)+abs(movj) ~= 2
+                i = i + 1;
+                lap = Pmig*(Poptot - state{xmov,ymov,z}(3));
+                if lap < 0
+                    lap = 0;
+                end
+                Lap(i,:) = [xmov,ymov,lap];
+            end
+        end
+    end
+    
+    Lap = Lap(all(Lap,2),:);
+    
+    Lap(:,3) = Lap(:,3)/Poptot;
+      
+    probstay = 1-sum(Lap(:,3));
+    
+    Lap(length(Lap(:,3))+1,:) = [x,y,probstay];
+    
+    % Sample number of migrants and assign destination according to
+    % probabilities
+    
+    migrants = mnrnd(Popgen,Lap(:,3));
+    
+    Lap(:,4) = migrants;
+    
+    for i=1:length(Lap(:,3))-1
+       
+        xmov = Lap(i,1);
+        ymov = Lap(i,2);
+    
+        gennext{xmov,ymov,z}(choice) = gennext{xmov,ymov,z}(choice)+Lap(i,4);
+        statenext{xmov,ymov,z}(3) = statenext{xmov,ymov,z}(3)+Lap(i,4);
+    
+    end
+    
+    out=sum(migrants(1:length(Lap(:,3))-1));
 end
